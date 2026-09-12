@@ -1,6 +1,7 @@
 import MapKit
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// ピンをタップすると下から立ち上がるスポット詳細。
 ///
