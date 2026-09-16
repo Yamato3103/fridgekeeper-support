@@ -11,18 +11,36 @@ struct MapTabView: View {
 
     @State private var cameraPosition: MapCameraPosition = .region(.japan)
     @State private var visibleRegion: MKCoordinateRegion?
-    @State private var selectedPlace: Place?
-
-    @State private var route: AddPlaceRoute?
-    @State private var draftFromLongPress: PlaceDraft?
     @State private var showsLongPressHint = false
 
-    /// スポット登録の4経路。入口は違っても、最後は NewPlaceFormView に合流する。
-    enum AddPlaceRoute: String, Identifiable {
+    /// この画面から開くシートは1つの状態にまとめる。
+    /// 同一階層に .sheet を複数積むと、表示が取りこぼされることがあるため。
+    @State private var sheet: Sheet?
+
+    enum Sheet: Identifiable {
+        /// ピンをタップしたときのスポット詳細。
+        case detail(Place)
+        /// 登録4経路。入口は違っても、最後は NewPlaceFormView に合流する。
+        case newPlace(PlaceDraft)
         case search
         case googleMapsURL
         case photo
-        var id: String { rawValue }
+
+        var id: String {
+            switch self {
+            case let .detail(place): "detail-\(place.id)"
+            case let .newPlace(draft): "new-\(draft.id)"
+            case .search: "search"
+            case .googleMapsURL: "googleMapsURL"
+            case .photo: "photo"
+            }
+        }
+    }
+
+    /// 選択中のピンを拡大表示するための判定。
+    private var selectedPlaceID: UUID? {
+        if case let .detail(place) = sheet { return place.id }
+        return nil
     }
 
     private var places: [Place] {
@@ -35,8 +53,8 @@ struct MapTabView: View {
                 Map(position: $cameraPosition) {
                     ForEach(places) { place in
                         Annotation(place.name, coordinate: place.coordinate, anchor: .center) {
-                            PlacePinView(place: place, isSelected: selectedPlace?.id == place.id)
-                                .onTapGesture { selectedPlace = place }
+                            PlacePinView(place: place, isSelected: selectedPlaceID == place.id)
+                                .onTapGesture { sheet = .detail(place) }
                         }
                         .annotationTitles(.hidden)
                     }
@@ -65,16 +83,14 @@ struct MapTabView: View {
                 locationProvider.requestAuthorization()
                 locationProvider.requestCurrentLocation()
             }
-            .sheet(item: $selectedPlace) { place in
-                PlaceDetailSheet(place: place)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-            }
-            .sheet(item: $draftFromLongPress) { draft in
-                NewPlaceFormView(draft: draft)
-            }
-            .sheet(item: $route) { route in
-                switch route {
+            .sheet(item: $sheet) { sheet in
+                switch sheet {
+                case let .detail(place):
+                    PlaceDetailSheet(place: place)
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                case let .newPlace(draft):
+                    NewPlaceFormView(draft: draft)
                 case .search:
                     PlaceSearchView(region: visibleRegion)
                 case .googleMapsURL:
@@ -96,19 +112,19 @@ struct MapTabView: View {
     private var addMenu: some View {
         Menu {
             Button {
-                route = .search
+                sheet = .search
             } label: {
                 Label("検索して追加", systemImage: "magnifyingglass")
             }
 
             Button {
-                route = .googleMapsURL
+                sheet = .googleMapsURL
             } label: {
                 Label("Google マップの URL から", systemImage: "link")
             }
 
             Button {
-                route = .photo
+                sheet = .photo
             } label: {
                 Label("写真から", systemImage: "photo")
             }
@@ -142,7 +158,7 @@ struct MapTabView: View {
                 }
 
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                draftFromLongPress = PlaceDraft(coordinate: coordinate, origin: .mapLongPress)
+                sheet = .newPlace(PlaceDraft(coordinate: coordinate, origin: .mapLongPress))
             }
     }
 
