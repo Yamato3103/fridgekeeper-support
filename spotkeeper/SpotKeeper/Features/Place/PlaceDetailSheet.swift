@@ -14,13 +14,18 @@ struct PlaceDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
-    @State private var justCheckedIn = false
+    /// 直前のチェックインで作られた訪問。「メモを追加」の行き先になる。
+    @State private var justCreatedVisit: Visit?
+    @State private var editingVisit: Visit?
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     checkInButton
+                    if let justCreatedVisit {
+                        addMemoButton(for: justCreatedVisit)
+                    }
                     routeButtons
                 }
 
@@ -48,25 +53,62 @@ struct PlaceDetailSheet: View {
                     Button("閉じる") { dismiss() }
                 }
             }
+            .sheet(item: $editingVisit) { visit in
+                VisitEditorView(visit: visit)
+            }
         }
     }
+
+    // MARK: - チェックイン
 
     private var checkInButton: some View {
         Button {
             checkIn()
         } label: {
             Label(
-                justCheckedIn ? "記録しました" : "チェックイン",
-                systemImage: justCheckedIn ? "checkmark.circle.fill" : "mappin.and.ellipse"
+                justCreatedVisit == nil ? "チェックイン" : "記録しました",
+                systemImage: justCreatedVisit == nil ? "mappin.and.ellipse" : "checkmark.circle.fill"
             )
             .font(.headline)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 4)
         }
         .buttonStyle(.borderedProminent)
-        .tint(justCheckedIn ? .green : .pinVisited)
+        .tint(justCreatedVisit == nil ? .pinVisited : .green)
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
     }
+
+    /// チェックイン直後に入力を強制しないための導線。
+    /// 押さなければ日時だけの記録として残り、後から履歴をタップして埋められる。
+    private func addMemoButton(for visit: Visit) -> some View {
+        Button {
+            editingVisit = visit
+        } label: {
+            Label("メモや写真を追加", systemImage: "square.and.pencil")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .font(.subheadline)
+    }
+
+    @MainActor
+    private func checkIn() {
+        if let justCreatedVisit {
+            // 二重チェックインの受け皿。連打しても訪問が増えないようにする。
+            editingVisit = justCreatedVisit
+            return
+        }
+
+        let visit = Visit(visitedAt: .now, source: .manual)
+        visit.place = place
+        context.insert(visit)
+
+        withAnimation {
+            justCreatedVisit = visit
+        }
+    }
+
+    // MARK: - 経路案内
 
     private var routeButtons: some View {
         HStack(spacing: 10) {
@@ -86,45 +128,6 @@ struct PlaceDetailSheet: View {
         }
         .buttonStyle(.bordered)
         .font(.subheadline)
-    }
-
-    private var visits: [Visit] { place.sortedVisits }
-
-    @ViewBuilder
-    private var visitHistorySection: some View {
-        Section("訪問履歴") {
-            if visits.isEmpty {
-                Text("まだ訪問の記録はありません")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-            } else {
-                ForEach(visits) { visit in
-                    VisitRow(visit: visit)
-                }
-                .onDelete { offsets in
-                    let targets = visits
-                    for index in offsets {
-                        context.delete(targets[index])
-                    }
-                }
-            }
-        }
-    }
-
-    @MainActor
-    private func checkIn() {
-        let visit = Visit(visitedAt: .now, source: .manual)
-        visit.place = place
-        context.insert(visit)
-
-        withAnimation { justCheckedIn = true }
-
-        // シートを閉じたあと、地図のピンが灰色から朱色へ切り替わるのを見せたい。
-        // 少しだけ間を置いてから閉じる。
-        Task {
-            try? await Task.sleep(for: .milliseconds(700))
-            dismiss()
-        }
     }
 
     private func openInAppleMaps() {
@@ -150,6 +153,48 @@ struct PlaceDetailSheet: View {
             openURL(webURL)
         }
     }
+
+    // MARK: - 訪問履歴
+
+    private var visits: [Visit] { place.sortedVisits }
+
+    @ViewBuilder
+    private var visitHistorySection: some View {
+        Section("訪問履歴") {
+            if visits.isEmpty {
+                Text("まだ訪問の記録はありません")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+            } else {
+                ForEach(visits) { visit in
+                    Button {
+                        editingVisit = visit
+                    } label: {
+                        VisitRow(visit: visit)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .onDelete { offsets in
+                    delete(at: offsets)
+                }
+            }
+        }
+    }
+
+    /// 訪問を消すときは写真の実体も消す。モデルの cascade はファイルまでは面倒を見ない。
+    private func delete(at offsets: IndexSet) {
+        let targets = visits
+        for index in offsets {
+            let visit = targets[index]
+            for photo in visit.sortedPhotos {
+                PhotoStore.delete(fileName: photo.fileName)
+            }
+            if visit.id == justCreatedVisit?.id {
+                justCreatedVisit = nil
+            }
+            context.delete(visit)
+        }
+    }
 }
 
 /// 訪問履歴の1行。メモは訪問ごとに独立しているため、
@@ -157,8 +202,10 @@ struct PlaceDetailSheet: View {
 private struct VisitRow: View {
     let visit: Visit
 
+    private var photos: [VisitPhoto] { visit.sortedPhotos }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(visit.visitedAt, format: .dateTime.year().month().day())
                     .font(.subheadline.weight(.medium))
@@ -168,6 +215,9 @@ private struct VisitRow: View {
                         .font(.caption)
                         .foregroundStyle(.pinWishlisted)
                 }
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
 
             if visit.memo.isEmpty {
@@ -180,6 +230,20 @@ private struct VisitRow: View {
                     .foregroundStyle(.secondary)
             }
 
+            if !photos.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(photos.prefix(4)) { photo in
+                        thumbnail(for: photo)
+                    }
+                    if photos.count > 4 {
+                        Text("+\(photos.count - 4)")
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             if let cost = visit.cost {
                 Text("\(cost) 円")
                     .font(.caption)
@@ -188,5 +252,17 @@ private struct VisitRow: View {
             }
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func thumbnail(for photo: VisitPhoto) -> some View {
+        if let data = photo.thumbnailData, let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
     }
 }
