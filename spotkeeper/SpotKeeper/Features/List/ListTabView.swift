@@ -5,7 +5,21 @@ struct ListTabView: View {
     @Query(sort: \Place.createdAt, order: .reverse) private var allPlaces: [Place]
 
     @State private var filter: Filter = .all
-    @State private var selectedPlace: Place?
+
+    /// シートは1つの状態にまとめる。同一階層に .sheet を複数積むと表示を取りこぼす。
+    @State private var sheet: Sheet?
+
+    enum Sheet: Identifiable {
+        case detail(Place)
+        case settings
+
+        var id: String {
+            switch self {
+            case let .detail(place): "detail-\(place.id)"
+            case .settings: "settings"
+            }
+        }
+    }
 
     enum Filter: String, CaseIterable, Identifiable {
         case all, unvisited, visited
@@ -43,7 +57,7 @@ struct ListTabView: View {
                 } else {
                     List(places) { place in
                         Button {
-                            selectedPlace = place
+                            sheet = .detail(place)
                         } label: {
                             PlaceRow(place: place)
                         }
@@ -62,10 +76,25 @@ struct ListTabView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+
+                // 設定はタブを増やさずここへ。タブが4つ以上になると片手操作で迷いが出る。
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        sheet = .settings
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("設定")
+                }
             }
-            .sheet(item: $selectedPlace) { place in
-                PlaceDetailSheet(place: place)
-                    .presentationDetents([.medium, .large])
+            .sheet(item: $sheet) { sheet in
+                switch sheet {
+                case let .detail(place):
+                    PlaceDetailSheet(place: place)
+                        .presentationDetents([.medium, .large])
+                case .settings:
+                    SettingsView()
+                }
             }
         }
     }

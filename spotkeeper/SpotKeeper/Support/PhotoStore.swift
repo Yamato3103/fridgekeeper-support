@@ -65,6 +65,21 @@ enum PhotoStore {
         try? FileManager.default.removeItem(at: url(for: fileName))
     }
 
+    /// 保管している写真の合計バイト数。設定画面で使用量を出すために使う。
+    static func totalBytes() -> Int64 {
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.fileSizeKey]
+        ) else {
+            return 0
+        }
+
+        return contents.reduce(into: Int64(0)) { total, url in
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            total += Int64(size)
+        }
+    }
+
     // MARK: - サムネイル
 
     /// `CGImageSourceCreateThumbnailAtIndex` は原寸を丸ごと展開せずに縮小するため、
