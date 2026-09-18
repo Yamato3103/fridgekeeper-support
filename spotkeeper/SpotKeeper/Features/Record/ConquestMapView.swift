@@ -96,8 +96,8 @@ struct ConquestMapView: View {
             VStack(spacing: spacing) {
                 ForEach(0..<PrefectureGrid.rowCount, id: \.self) { rowIndex in
                     HStack(spacing: spacing) {
-                        ForEach(Array(PrefectureGrid.row(rowIndex).enumerated()), id: \.offset) { _, tile in
-                            if let tile {
+                        ForEach(Array(PrefectureGrid.row(rowIndex).enumerated()), id: \.offset) { cell in
+                            if let tile = cell.element {
                                 PrefectureCell(
                                     tile: tile,
                                     visitCount: visitCounts[tile.name] ?? 0,
@@ -129,7 +129,7 @@ struct ConquestMapView: View {
                         .fill(level.fill)
                         .overlay {
                             RoundedRectangle(cornerRadius: 3)
-                                .strokeBorder(level.border, lineWidth: level == .none ? 1 : 0)
+                                .strokeBorder(level.border, lineWidth: level == .untouched ? 1 : 0)
                         }
                         .frame(width: 12, height: 12)
                     Text(level.label)
@@ -149,7 +149,8 @@ struct ConquestMapView: View {
 
 /// 訪問回数を4段階に落としたもの。連続値で塗ると差が読み取れないため段階にする。
 enum ConquestLevel: Int, CaseIterable, Identifiable {
-    case none
+    /// `none` は Optional.none と綴りが衝突して型推論が曖昧になるため使わない。
+    case untouched
     case light
     case medium
     case deep
@@ -158,7 +159,7 @@ enum ConquestLevel: Int, CaseIterable, Identifiable {
 
     init(visitCount: Int) {
         switch visitCount {
-        case 0: self = .none
+        case 0: self = .untouched
         case 1...2: self = .light
         case 3...5: self = .medium
         default: self = .deep
@@ -167,7 +168,7 @@ enum ConquestLevel: Int, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .none: "未訪問"
+        case .untouched: "未訪問"
         case .light: "1–2回"
         case .medium: "3–5回"
         case .deep: "6回以上"
@@ -176,7 +177,7 @@ enum ConquestLevel: Int, CaseIterable, Identifiable {
 
     var fill: Color {
         switch self {
-        case .none: .clear
+        case .untouched: .clear
         case .light: Color.pinVisited.opacity(0.28)
         case .medium: Color.pinVisited.opacity(0.62)
         case .deep: Color.pinVisited
@@ -184,12 +185,12 @@ enum ConquestLevel: Int, CaseIterable, Identifiable {
     }
 
     var border: Color {
-        self == .none ? Color.pinIdle.opacity(0.45) : .clear
+        self == .untouched ? Color.pinIdle.opacity(0.45) : .clear
     }
 
     var textColor: Color {
         switch self {
-        case .none: .secondary
+        case .untouched: .secondary
         case .light, .medium: .primary
         case .deep: .pinLabel
         }
@@ -208,7 +209,7 @@ private struct PrefectureCell: View {
             .fill(level.fill)
             .overlay {
                 RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(level.border, lineWidth: level == .none ? 1 : 0)
+                    .strokeBorder(level.border, lineWidth: level == .untouched ? 1 : 0)
             }
             .overlay {
                 Text(tile.short)

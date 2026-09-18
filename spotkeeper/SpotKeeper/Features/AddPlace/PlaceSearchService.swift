@@ -7,7 +7,6 @@ import Foundation
 /// ただし日本の小規模店舗の網羅性は Google に劣るため、
 /// 将来 Google Places API へ差し替えられるよう、検索はこのプロトコル越しに呼ぶ。
 /// 差し替えるのは検索だけで、地図は MapKit のまま維持できる。
-@MainActor
 protocol PlaceSearchProviding: AnyObject {
     func updateQuery(_ query: String, around region: MKCoordinateRegion?)
     func resolve(_ suggestion: PlaceSuggestion) async -> PlaceDraft?
@@ -26,7 +25,9 @@ struct PlaceSuggestion: Identifiable, Hashable {
     static func == (lhs: PlaceSuggestion, rhs: PlaceSuggestion) -> Bool { lhs.id == rhs.id }
 }
 
-@MainActor
+/// `MKLocalSearchCompleter` のデリゲートは、コンプリータを作ったのと同じキュー
+/// （このクラスは View から生成されるのでメインキュー）に返ってくる。
+/// LocationProvider と同じ理由でクラスは `@MainActor` にしない。
 final class PlaceSearchService: NSObject, ObservableObject, PlaceSearchProviding {
     @Published private(set) var suggestions: [PlaceSuggestion] = []
     @Published private(set) var isSearching = false
@@ -81,21 +82,16 @@ final class PlaceSearchService: NSObject, ObservableObject, PlaceSearchProviding
 }
 
 extension PlaceSearchService: MKLocalSearchCompleterDelegate {
-    nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
-        let results = completer.results
-        Task { @MainActor in
-            self.suggestions = results.map {
-                PlaceSuggestion(title: $0.title, subtitle: $0.subtitle, completion: $0)
-            }
-            self.isSearching = false
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        suggestions = completer.results.map {
+            PlaceSuggestion(title: $0.title, subtitle: $0.subtitle, completion: $0)
         }
+        isSearching = false
     }
 
-    nonisolated func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
-        Task { @MainActor in
-            self.suggestions = []
-            self.isSearching = false
-        }
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        suggestions = []
+        isSearching = false
     }
 }
 

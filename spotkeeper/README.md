@@ -177,6 +177,15 @@ App Store 審査ではこの2つの URL が実際に開けることを確認さ�
 
 **V1 の実装はこれで一通り揃った。** 残るのは Mac でのビルド確認と実機での動作確認。
 
+ビルド前の静的レビューで直した点:
+
+- `ConquestMapView` の `ForEach` でタプルを2引数に分解していた（Swift は自動分解しない）
+- `ConquestLevel.none` が `Optional.none` と綴りで衝突するため `untouched` に改名
+- `LocationProvider` と `PlaceSearchService` の `@MainActor` を外した。
+  どちらのデリゲートもメインキューに返るため Task で包む必要がなく、
+  付けたままだと `@StateObject` の初期化側で分離の警告（Swift 6 ではエラー）が出る
+- 同一階層に積んでいた `.sheet` を地図タブ・リストタブとも1つに集約
+
 V1.1 以降:
 
 - 写真からの訪問自動サジェスト
