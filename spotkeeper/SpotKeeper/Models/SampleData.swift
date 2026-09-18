@@ -40,6 +40,8 @@ enum SampleData {
             address: "東京都八王子市高尾町",
             note: "ケーブルカーは平日でも朝9時台から混む"
         )
+        takao.prefecture = "東京都"
+        takao.municipality = "八王子市"
 
         // 未訪問・優先。行きたい度が高いので地図上で目立つ。
         let kanazawa = Place(
@@ -50,6 +52,8 @@ enum SampleData {
             address: "石川県金沢市広坂1-2-1",
             note: "月曜休館。展覧会ゾーンは要予約"
         )
+        kanazawa.prefecture = "石川県"
+        kanazawa.municipality = "金沢市"
 
         // 訪問1回。
         let fushimi = Place(
@@ -59,6 +63,8 @@ enum SampleData {
             wishLevel: 2,
             address: "京都府京都市伏見区深草藪之内町68"
         )
+        fushimi.prefecture = "京都府"
+        fushimi.municipality = "京都市"
         fushimi.visits = [
             Visit(
                 visitedAt: daysAgo(96),
@@ -76,6 +82,8 @@ enum SampleData {
             address: "愛媛県松山市道後湯之町5-6",
             note: "駐車場は本館前ではなく市営の第2が停めやすい"
         )
+        dogo.prefecture = "愛媛県"
+        dogo.municipality = "松山市"
         dogo.visits = [
             Visit(visitedAt: daysAgo(412), memo: "改修中で一部だけ入浴。それでも雰囲気は十分。", rating: 4, cost: 460),
             Visit(visitedAt: daysAgo(210), memo: "二階席を利用。湯上がりの坊っちゃん団子がよかった。", rating: 5, cost: 1250),
@@ -90,6 +98,8 @@ enum SampleData {
             wishLevel: 1,
             address: "神奈川県鎌倉市雪ノ下2-1-31"
         )
+        tsuruoka.prefecture = "神奈川県"
+        tsuruoka.municipality = "鎌倉市"
         tsuruoka.visits = [
             Visit(visitedAt: .now, memo: "", rating: 0)
         ]

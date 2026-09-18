@@ -1,10 +1,10 @@
 import SwiftData
 import SwiftUI
 
-/// 記録タブ。V1 では訪問タイムラインと制覇マップがここに入る。
-/// 現段階ではタイムラインのみ。
+/// 記録タブ。訪問タイムライン、件数サマリー、制覇マップへの入口。
 struct RecordTabView: View {
     @Query(sort: \Visit.visitedAt, order: .reverse) private var visits: [Visit]
+    @Query private var places: [Place]
 
     var body: some View {
         NavigationStack {
@@ -19,6 +19,20 @@ struct RecordTabView: View {
                     List {
                         Section {
                             summary
+                        }
+
+                        Section {
+                            NavigationLink {
+                                ConquestMapView()
+                            } label: {
+                                LabeledContent {
+                                    Text("\(conqueredPrefectureCount) / 47")
+                                        .monospacedDigit()
+                                        .foregroundStyle(.pinVisited)
+                                } label: {
+                                    Label("制覇マップ", systemImage: "map.fill")
+                                }
+                            }
                         }
 
                         Section("タイムライン") {
@@ -40,6 +54,14 @@ struct RecordTabView: View {
         }.count
     }
 
+    /// 訪問済みスポットがある都道府県の数。集計は保存済みの prefecture を読むだけ。
+    private var conqueredPrefectureCount: Int {
+        let names = places
+            .filter { !$0.isArchived && $0.isVisited }
+            .compactMap { PrefectureGrid.normalize($0.prefecture) }
+        return Set(names).count
+    }
+
     private var summary: some View {
         HStack {
             statistic(value: "\(visits.count)", caption: "訪問")
@@ -47,6 +69,8 @@ struct RecordTabView: View {
             statistic(value: "\(thisYearCount)", caption: "今年")
             Divider()
             statistic(value: "\(Set(visits.compactMap { $0.place?.id }).count)", caption: "スポット")
+            Divider()
+            statistic(value: "\(conqueredPrefectureCount)", caption: "都道府県")
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
