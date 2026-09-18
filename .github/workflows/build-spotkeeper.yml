@@ -1,0 +1,40 @@
+name: Build SpotKeeper
+
+# スポットキーパーは iOS アプリなので、ビルドには macOS と Xcode が要る。
+# 手元の開発環境が Mac でないときのために、ここでコンパイルだけ通しておく。
+on:
+  push:
+    branches: ["claude/**"]
+    paths:
+      - "spotkeeper/**"
+      - ".github/workflows/build-spotkeeper.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode のバージョンを記録
+        run: xcodebuild -version
+
+      - name: XcodeGen を導入
+        run: brew install xcodegen
+
+      - name: Xcode プロジェクトを生成
+        working-directory: spotkeeper
+        run: xcodegen generate
+
+      # 署名は不要。シミュレータ向けにコンパイルが通るかだけを見る。
+      - name: ビルド
+        working-directory: spotkeeper
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project SpotKeeper.xcodeproj \
+            -scheme SpotKeeper \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
